@@ -4,5 +4,5 @@ transformers
 torch
 pyttsx3
 langdetect
-portaudio
-pyaudio
+portaudio==19.7.0.1
+pyaudio==0.2.11
