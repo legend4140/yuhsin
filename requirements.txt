@@ -6,4 +6,4 @@ pyttsx3
 langdetect
 PortAudio
 streamlit==0.90.0
-pyaudio==0.2.11 
+pyaudio==0.2.14
