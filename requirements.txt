@@ -5,3 +5,4 @@ transformers
 torch
 pyttsx3
 langdetect
+PortAudio
