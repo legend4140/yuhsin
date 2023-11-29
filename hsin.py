@@ -1,3 +1,10 @@
+!pip install streamlit
+!pip install SpeechRecognition
+!pip install transformers
+!pip install torch
+!pip install pyttsx3
+!pip install langdetect
+
 import streamlit as st
 import speech_recognition as sr
 from transformers import BertTokenizer, BertForSequenceClassification
