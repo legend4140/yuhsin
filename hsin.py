@@ -68,7 +68,7 @@ def speak_text(text):
     engine.runAndWait()
 
 def main():
-    st.title("Audio Sentiment Analysis")
+    st.title("Live Audio Sentiment Analysis")
 
     # Load the BERT models and tokenizers
     tokenizer_en, model_en, tokenizer_cn, model_cn = load_bert_models()
