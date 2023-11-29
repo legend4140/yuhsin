@@ -1,91 +1,84 @@
 import streamlit as st
-import speech_recognition as sr
+import sounddevice as sd
+import numpy as np
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
 import pyttsx3
-from langdetect import detect
+from pydub import AudioSegment
+from pydub.playback import play as pydub_play
 
-# Load the BERT models and tokenizers for English and Chinese
-@st.cache(allow_output_mutation=True)
-def load_bert_models():
-    tokenizer_en = BertTokenizer.from_pretrained('bert-base-uncased')
-    model_en = BertForSequenceClassification.from_pretrained('bert-base-uncased')
+def load_bert_model():
+    model_name = "bert-base-uncased"
+    tokenizer = BertTokenizer.from_pretrained(model_name)
+    model = BertForSequenceClassification.from_pretrained(model_name)
+    return tokenizer, model
 
-    tokenizer_cn = BertTokenizer.from_pretrained('bert-base-chinese')
-    model_cn = BertForSequenceClassification.from_pretrained('bert-base-chinese')
+def record_audio(duration=5, sample_rate=44100):
+    st.write("Click the button below and start speaking...")
+    audio_data = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype=np.int16)
+    sd.wait()
+    return audio_data.flatten()
 
-    return tokenizer_en, model_en, tokenizer_cn, model_cn
-
-# Convert audio to text using speech recognition
-def convert_audio_to_text():
-    recognizer = sr.Recognizer()
-    mic = sr.Microphone()
-
-    with mic as source:
-        st.write("Say something...")
-        recognizer.adjust_for_ambient_noise(source)
-        audio = recognizer.listen(source)
-
-    try:
-        text = recognizer.recognize_google(audio, language='zh-TW')  # For Chinese
-        return text, 'zh'
-    except sr.UnknownValueError:
-        try:
-            text = recognizer.recognize_google(audio)  # For English or other languages
-            return text, 'en'
-        except sr.UnknownValueError:
-            return "Speech recognition could not understand audio", ''
-
-# Preprocess text for sentiment analysis based on language
-def preprocess_text(text, tokenizer, language):
+def preprocess_text(text, tokenizer):
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
     return inputs
 
-# Analyze sentiment using the appropriate BERT model based on language
-def analyze_sentiment_bert(text, tokenizer_en, model_en, tokenizer_cn, model_cn, language):
-    if language == 'zh':
-        tokenizer = tokenizer_cn
-        model = model_cn
-    else:
-        tokenizer = tokenizer_en
-        model = model_en
-
-    inputs = preprocess_text(text, tokenizer, language)
+def predict_sentiment(inputs, model):
     outputs = model(**inputs)
     logits = outputs.logits
     probabilities = torch.softmax(logits, dim=1)
     predicted_class = torch.argmax(probabilities, dim=1).item()
+    return predicted_class
 
-    if predicted_class == 0:
-        return "Seems negative." if language == 'en' else "负面情绪。"
-    elif predicted_class == 1:
-        return "Seems positive." if language == 'en' else "正面情绪。"
-
-# Speak the analyzed sentiment
 def speak_text(text):
     engine = pyttsx3.init()
     engine.say(text)
     engine.runAndWait()
 
-def main():
-    st.title("Live Audio Sentiment Analysis")
+def play_audio(audio_data, sample_rate=44100):
+    audio = AudioSegment(
+        audio_data.tobytes(),
+        frame_rate=sample_rate,
+        sample_width=audio_data.dtype.itemsize,
+        channels=1
+    )
+    pydub_play(audio)
 
-    # Load the BERT models and tokenizers
-    tokenizer_en, model_en, tokenizer_cn, model_cn = load_bert_models()
+def analyze_emotion_bert(text, tokenizer, model):
+    inputs = preprocess_text(text, tokenizer)
+    predicted_class = predict_sentiment(inputs, model)
+
+    # Based on model output, perform sentiment classification
+    if predicted_class == 0:
+        return "Oh, seems like you're feeling a bit down today."
+    elif predicted_class == 1:
+        return "Wow, your mood seems really positive today!"
+    elif predicted_class == 2:
+        return "Wow, it seems you're really excited right now!"
+
+def main():
+    st.title("Live Emotion Analysis")
+
+    # Load the BERT model
+    tokenizer, model = load_bert_model()
 
     if st.button("Start Recording"):
-        # Convert audio to text
-        audio_text, detected_lang = convert_audio_to_text()
+        # Record and process the audio
+        audio_data = record_audio()
 
-        if audio_text:
-            st.write(f"Recognized text: {audio_text}")
+        if len(audio_data):
+            # Convert audio to text
+            text = " ".join(map(str, audio_data))
 
-            # Analyze sentiment using the appropriate BERT model
-            sentiment = analyze_sentiment_bert(audio_text, tokenizer_en, model_en, tokenizer_cn, model_cn, detected_lang)
-            st.write(f"Sentiment: {sentiment}")
+            # Perform sentiment analysis
+            emotion = analyze_emotion_bert(text, tokenizer, model)
+            st.write(f"Detected Emotion: {emotion}")
 
-            # Speak the sentiment
-            speak_text(sentiment)
+            # Speak the detected emotion
+            speak_text(emotion)
+
+            # Play the recorded audio
+            play_audio(audio_data)
 
 if __name__ == "__main__":
     main()
